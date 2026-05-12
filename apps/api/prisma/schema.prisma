@@ -1,0 +1,53 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      String   // ADMIN, ORGANIZER, SECURITY, VENDOR, OPERATIONS, QA
+  createdAt DateTime @default(now())
+}
+
+model Ticket {
+  id         String   @id @default(uuid())
+  code       String   @unique
+  isValid    Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  scans      Scan[]
+}
+
+model Gate {
+  id          String      @id @default(uuid())
+  name        String
+  status      String      // OPERATIONAL, WARNING, FAILURE
+  createdAt   DateTime    @default(now())
+  scans       Scan[]
+}
+
+model Scan {
+  id          String   @id @default(uuid())
+  ticketId    String
+  gateId      String
+  success     Boolean
+  scannedAt   DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id])
+  gate   Gate   @relation(fields: [gateId], references: [id])
+}
+
+model Alert {
+  id          String    @id @default(uuid())
+  title       String
+  message     String
+  severity    String
+  status      String    @default("OPEN")
+  createdAt   DateTime  @default(now())
+  resolvedAt  DateTime?
+}

@@ -1,0 +1,11 @@
+node_modules
+dist
+.env
+*.log
+apps/api/prisma/dev.db
+apps/api/prisma/dev.db-journal
+.antigravity
+.gemini
+.DS_Store
+build
+.next
