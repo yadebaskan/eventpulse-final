@@ -28,9 +28,4 @@ export class EventsGateway {
     this.server.emit('alert:created', data);
     console.log('WebSocket alert:created emitted');
   }
-
-  emitAlertUpdate(data: any) {
-    this.server.emit('alert:updated', data);
-    console.log('WebSocket alert:updated emitted');
-  }
 }

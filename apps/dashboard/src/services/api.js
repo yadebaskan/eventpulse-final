@@ -121,13 +121,3 @@ export async function triggerHighLatencyAlert() {
     return null;
   }
 }
-
-export async function resolveAlertAPI(id) {
-  try {
-    const res = await api.post(`/alerts/${id}/resolve`);
-    return res.data;
-  } catch (err) {
-    console.error("Resolve alert error:", err);
-    return null;
-  }
-}

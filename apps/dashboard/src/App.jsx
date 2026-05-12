@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar
 } from "recharts";
@@ -20,7 +20,6 @@ import {
   fetchAlerts,
   triggerGateFailureAlert,
   triggerHighLatencyAlert,
-  resolveAlertAPI,
 } from "./services/api";
 import { socket } from "./services/socket";
 
@@ -68,11 +67,6 @@ const App = () => {
   const [alerts, setAlerts] = useState([]);
 
   const [notifications, setNotifications] = useState([]);
-  const isNetworkOutageRef = useRef(isNetworkOutage);
-
-  useEffect(() => {
-    isNetworkOutageRef.current = isNetworkOutage;
-  }, [isNetworkOutage]);
   const [inventory, setInventory] = useState([
     { id: "burger", name: "Burger Station", stock: 85, autoOrder: false },
     { id: "beverage", name: "Beverage Bar", stock: 45, autoOrder: true },
@@ -164,14 +158,12 @@ if (alertsData) {
       setApiHealth(true);
       setStats((prev) => ({
         ...prev,
-        // Use ref to check outage status to avoid closure issues in socket listener
-        tickets: isNetworkOutageRef.current ? prev.tickets : (data.totalEntries ?? prev.tickets),
+        tickets: data.totalEntries ?? prev.tickets,
         latency: data.latency ?? prev.latency,
         errorRate: data.errorRate ?? prev.errorRate,
         concurrent: data.concurrentUsers ?? prev.concurrent,
         activeGates: data.activeGates ?? prev.activeGates,
         revenue: data.revenue ?? prev.revenue,
-        pods: data.pods ?? prev.pods,
       }));
     });
 
@@ -184,20 +176,7 @@ if (alertsData) {
       }
     });
     socket.on("alert:created", (alert) => {
-      setAlerts((prev) => {
-        if (prev.find((a) => a.id === alert.id)) return prev;
-        return [alert, ...prev];
-      });
-      addNotification("New System Alert", alert.title, "warning");
-    });
-
-    socket.on("alert:updated", (alert) => {
-      setAlerts((prev) =>
-        prev.map((item) => (item.id === alert.id ? alert : item))
-      );
-      if (alert.status === "RESOLVED") {
-        addNotification("Alert Resolved", alert.title, "success");
-      }
+      setAlerts((prev) => [alert, ...prev]);
     });
 
     // Initial Gate Alert
@@ -518,11 +497,7 @@ if (alertsData) {
           const alert = await triggerGateFailureAlert();
 
           if (alert) {
-            setAlerts((prev) => {
-              if (prev.find((a) => a.id === alert.id)) return prev;
-              return [alert, ...prev];
-            });
-            addNotification("Action Processed", "Gate Failure Triggered", "info");
+            setAlerts((prev) => [alert, ...prev]);
           }
         }}
         className="px-3 py-2 bg-rose-600 hover:bg-rose-500 rounded-lg text-[10px] font-black uppercase tracking-widest"
@@ -535,11 +510,7 @@ if (alertsData) {
           const alert = await triggerHighLatencyAlert();
 
           if (alert) {
-            setAlerts((prev) => {
-              if (prev.find((a) => a.id === alert.id)) return prev;
-              return [alert, ...prev];
-            });
-            addNotification("Action Processed", "Latency Triggered", "info");
+            setAlerts((prev) => [alert, ...prev]);
           }
         }}
         className="px-3 py-2 bg-amber-600 hover:bg-amber-500 rounded-lg text-[10px] font-black uppercase tracking-widest"
@@ -588,48 +559,32 @@ if (alertsData) {
             {alert.message}
           </p>
           {alert.status !== "RESOLVED" ? (
-            <button
-              onClick={async () => {
-                // Local alerts (not in DB) should be resolved locally
-                if (alert.id.startsWith("duplicate-")) {
-                  setAlerts((prev) =>
-                    prev.map((item) =>
-                      item.id === alert.id ? { ...item, status: "RESOLVED" } : item
-                    )
-                  );
-                  return;
-                }
+  <button
+    onClick={async () => {
+      const res = await fetch(
+        `http://localhost:3000/alerts/${alert.id}/resolve`,
+        {
+          method: "POST",
+        }
+      );
 
-                try {
-                  addNotification("Processing", "Resolving alert...", "info");
-                  const updated = await resolveAlertAPI(alert.id);
+      const updated = await res.json();
 
-                  if (updated) {
-                    setAlerts((prev) =>
-                      prev.map((item) => (item.id === updated.id ? updated : item))
-                    );
-                  } else {
-                    console.error("Failed to resolve alert on backend");
-                    // Fallback to local resolve if backend fails
-                    setAlerts((prev) =>
-                      prev.map((item) =>
-                        item.id === alert.id ? { ...item, status: "RESOLVED" } : item
-                      )
-                    );
-                  }
-                } catch (err) {
-                  console.error("Error resolving alert:", err);
-                }
-              }}
-              className="mt-3 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-[10px] font-black uppercase tracking-widest text-white"
-            >
-              Resolve
-            </button>
-          ) : (
-            <div className="mt-3 text-[10px] font-black uppercase tracking-widest text-emerald-400">
-              Resolved
-            </div>
-          )}
+      setAlerts((prev) =>
+        prev.map((item) =>
+          item.id === updated.id ? updated : item
+        )
+      );
+    }}
+    className="mt-3 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-[10px] font-black uppercase tracking-widest text-white"
+  >
+    Resolve
+  </button>
+) : (
+  <div className="mt-3 text-[10px] font-black uppercase tracking-widest text-emerald-400">
+    Resolved
+  </div>
+)}
         </div>
       ))
     )}
@@ -658,7 +613,6 @@ if (alertsData) {
                 color={syncQueue > 0 ? COLORS.warning : COLORS.success}
               />
               <StatCard icon={UserCheck} title="Staff Efficiency" value={`%${stats.efficiency}`} subValue="Monitoring" color={COLORS.success} />
-              <StatCard icon={Clock} title="API Latency" value={`${stats.latency}ms`} trend={stats.latency > 200 ? "+12%" : "-2%"} color={stats.latency > 200 ? COLORS.danger : COLORS.success} />
               <StatCard icon={DollarSign} title="Total Revenue" value={`$${stats.revenue.toLocaleString()}`} color={COLORS.success} />
             </div>
 
@@ -829,22 +783,14 @@ if (alertsData) {
                   })}
                 </div>
 
-                <div className="p-6 bg-slate-800/20 border border-slate-800 rounded-2xl text-center relative overflow-hidden">
-                  <div className="flex justify-between items-center mb-4">
-                    <h4 className="text-xs font-black text-slate-500 uppercase tracking-[0.1em]">HPA Infrastructure (Auto-Scaling)</h4>
-                    {isPeakLoad && (
-                      <div className="flex items-center gap-2 px-2 py-0.5 bg-violet-500/20 border border-violet-500/40 rounded-full animate-pulse">
-                        <Cpu size={10} className="text-violet-500" />
-                        <span className="text-[8px] font-black uppercase tracking-widest text-violet-400">Scaling Active</span>
-                      </div>
-                    )}
-                  </div>
+                <div className="p-6 bg-slate-800/20 border border-slate-800 rounded-2xl text-center">
+                  <h4 className="text-xs font-black text-slate-500 uppercase mb-4 tracking-[0.1em]">HPA Infrastructure (Auto-Scaling)</h4>
                   <div className="flex justify-around items-end h-16 gap-1.5">
                     {[...Array(stats.pods)].map((_, i) => (
                       <div key={i} className="w-full bg-violet-500/40 border border-violet-500/60 rounded-t h-full transition-all duration-700 shadow-[0_0_10px_rgba(139,92,246,0.3)]" />
                     ))}
                   </div>
-                  <p className="text-[10px] text-violet-400 mt-4 font-black uppercase tracking-widest">{stats.pods} ACTIVE K8S NODES</p>
+                  <p className="text-[10px] text-violet-400 mt-4 font-bold uppercase tracking-widest">{stats.pods} ACTIVE K8S NODES</p>
                 </div>
               </div>
             </div>

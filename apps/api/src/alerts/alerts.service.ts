@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsGateway } from '../gateway/events.gateway';
-import { MetricsService } from '../metrics/metrics.service';
 
 type AlertSeverityType = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
@@ -11,7 +10,6 @@ export class AlertsService {
   constructor(
     private prisma: PrismaService,
     private eventsGateway: EventsGateway,
-    private metricsService: MetricsService,
   ) {}
 
   async getAlerts() {
@@ -46,13 +44,7 @@ export class AlertsService {
       },
     });
 
-    this.eventsGateway.emitAlertUpdate(alert);
-
-    if (alert.title === 'High Latency') {
-      this.metricsService.setHighLatency(false);
-      const metrics = await this.metricsService.getDashboardMetrics();
-      this.eventsGateway.emitMetricsUpdate(metrics);
-    }
+    this.eventsGateway.emitAlert(alert);
 
     return alert;
   }
@@ -66,10 +58,6 @@ export class AlertsService {
   }
 
   async createHighLatencyAlert() {
-    this.metricsService.setHighLatency(true);
-    const metrics = await this.metricsService.getDashboardMetrics();
-    this.eventsGateway.emitMetricsUpdate(metrics);
-
     return this.createAlert({
       title: 'High Latency',
       message: 'API latency exceeded acceptable technical monitoring threshold.',

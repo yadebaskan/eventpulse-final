@@ -30,12 +30,10 @@ export class TicketsService implements OnModuleInit {
 
   togglePeakMode(enabled: boolean) {
     this.isPeakMode = enabled;
-    this.metricsService.setPeakMode(enabled);
     console.log(
       `Peak Mode ${enabled ? 'ENABLED' : 'DISABLED'} - Adjusting traffic...`,
     );
     this.startBackgroundTraffic();
-    this.emitMetrics(); // Push immediate update
   }
 
   private startBackgroundTraffic() {

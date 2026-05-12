@@ -7,21 +7,10 @@ import { RedisService } from '../redis/redis.service';
 export class MetricsService {
   private startedAt = Date.now();
 
-  private isHighLatency = false;
-  private isPeakMode = false;
-
   constructor(
     private redisService: RedisService,
     private prisma: PrismaService,
   ) {}
-
-  setHighLatency(value: boolean) {
-    this.isHighLatency = value;
-  }
-
-  setPeakMode(value: boolean) {
-    this.isPeakMode = value;
-  }
 
   async incrementScan() {
     const current =
@@ -82,9 +71,9 @@ export class MetricsService {
 
     const metrics = {
       totalEntries: totalScans,
-      latency: this.isHighLatency
-        ? 450 + Math.floor(Math.random() * 200)
-        : 90 + Math.floor(Math.random() * 40),
+      latency:
+        90 +
+        Math.floor(Math.random() * 40),
 
       errorRate: Number(
         (
@@ -98,10 +87,6 @@ export class MetricsService {
         Math.max(0, totalScans - Math.floor(Math.random() * 3)),
 
       activeGates: `${activeGates}/24`,
-
-      pods: this.isPeakMode 
-        ? 12 + Math.floor(Math.random() * 5) 
-        : 8,
 
       revenue:
         500000 + totalScans * 195,
